@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -62,11 +65,78 @@ func getEnvWithDefault(key, defaultValue string) string {
 }
 
 type BatchProcessor struct {
-	payloads      []Payload
-	mu            sync.Mutex
-	batchSize     int
-	batchInterval time.Duration
-	postEndpoint  string
-	timer         *time.Timer
-	client        *http.Client
+	payloads     []Payload
+	mu           sync.Mutex
+	batchSize    int
+	postEndpoint string
+	client       *http.Client
+}
+
+func (bp *BatchProcessor) AddPayload(payload Payload) {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+
+	bp.payloads = append(bp.payloads, payload)
+
+	if len(bp.payloads) >= bp.batchSize {
+		go bp.ProcessBatch()
+	}
+}
+
+func (bp *BatchProcessor) ProcessBatch() {
+	bp.mu.Lock()
+
+	if len(bp.payloads) == 0 {
+		bp.mu.Unlock()
+		return
+	}
+
+	payloads := bp.payloads
+	bp.payloads = make([]Payload, 0, bp.batchSize)
+
+	bp.mu.Unlock()
+
+	batchSize := len(payloads)
+	log.Printf("Processing batch: size=%d", batchSize)
+
+	if err := bp.sendBatch(payloads); err != nil {
+		log.Printf("ERROR: Failed to process batch after retries: %v", err)
+		log.Fatalf("Exiting application due to repeated failures")
+	}
+}
+
+func (bp *BatchProcessor) sendBatch(payloads []Payload) error {
+	jsonData, err := json.Marshal(payloads)
+	if err != nil {
+		return fmt.Errorf("error marshaling payloads: %w", err)
+	}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			log.Printf("Retrying batch send: attempt=%d", attempt+1)
+			time.Sleep(2 * time.Second)
+		}
+
+		start := time.Now()
+		resp, err := bp.client.Post(bp.postEndpoint, "application/json", bytes.NewBuffer(jsonData))
+		duration := time.Since(start)
+
+		if err != nil {
+			log.Printf("WARN: Error sending batch: %v, attempt=%d", err, attempt+1)
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		log.Printf("Batch sent: size=%d, status_code=%d, duration=%v",
+			len(payloads), resp.StatusCode, duration)
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil
+		}
+
+		log.Printf("WARN: Bad status code: %d, attempt=%d", resp.StatusCode, attempt+1)
+	}
+
+	return fmt.Errorf("failed to send batch after 3 attempts")
 }
