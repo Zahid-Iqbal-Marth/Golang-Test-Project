@@ -140,3 +140,16 @@ func (bp *BatchProcessor) sendBatch(payloads []Payload) error {
 
 	return fmt.Errorf("failed to send batch after 3 attempts")
 }
+
+func NewBatchProcessor(batchSize int, postEndpoint string) *BatchProcessor {
+	bp := &BatchProcessor{
+		payloads:     make([]Payload, 0, batchSize),
+		batchSize:    batchSize,
+		postEndpoint: postEndpoint,
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+
+	return bp
+}
