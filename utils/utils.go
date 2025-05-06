@@ -130,7 +130,12 @@ func (bp *BatchProcessor) sendBatch(payloads []Payload) error {
 			continue
 		}
 
-		defer resp.Body.Close()
+		defer func() {
+			err := resp.Body.Close()
+			if err != nil {
+				log.Printf("ERROR: Failed to close response body: %v", err)
+			}
+		}()
 
 		log.Printf("Batch sent: size=%d, status_code=%d, duration=%v",
 			len(payloads), resp.StatusCode, duration)
