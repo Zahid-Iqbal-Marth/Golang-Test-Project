@@ -15,7 +15,7 @@ func SetupRouter(processor *utils.BatchProcessor) *gin.Engine {
 
 	router := gin.New()
 	router.Use(gin.Recovery())
-
+	router.Use(handlers.LoggingMiddleware())
 	// Define routes
 	router.GET("/healthz", handlers.HealthzHandler)
 	router.POST("/log", handlers.LogHandler(processor))
