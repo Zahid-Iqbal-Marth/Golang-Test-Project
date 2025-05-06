@@ -63,10 +63,12 @@ docker logs inspiring_carver
 2025/05/06 11:54:27 utils.go:135: Batch sent: size=1, status_code=200, duration=3.323507224s
 ```
 
+## Results of golangci-lint
 
-
-
-
+```bash
+zahid@fedora:~/projects/Golang-Test-Project$ golangci-lint run
+0 issues.
+```
 
 
 
