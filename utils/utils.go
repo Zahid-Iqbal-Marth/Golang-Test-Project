@@ -166,9 +166,7 @@ func (bp *BatchProcessor) restartTimer() {
 		bp.timer.Stop()
 	}
 
-	log.Printf("Restarting timer with interval: %v", bp.batchInterval)
 	bp.timer = time.AfterFunc(bp.batchInterval, func() {
-		log.Printf("Timer triggered, processing batch")
 		bp.ProcessBatch()
 	})
 }
