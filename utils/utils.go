@@ -65,11 +65,13 @@ func getEnvWithDefault(key, defaultValue string) string {
 }
 
 type BatchProcessor struct {
-	payloads     []Payload
-	mu           sync.Mutex
-	batchSize    int
-	postEndpoint string
-	client       *http.Client
+	payloads      []Payload
+	mu            sync.Mutex
+	batchSize     int
+	batchInterval time.Duration
+	postEndpoint  string
+	timer         *time.Timer
+	client        *http.Client
 }
 
 func (bp *BatchProcessor) AddPayload(payload Payload) {
@@ -87,6 +89,7 @@ func (bp *BatchProcessor) ProcessBatch() {
 	bp.mu.Lock()
 
 	if len(bp.payloads) == 0 {
+		bp.restartTimer()
 		bp.mu.Unlock()
 		return
 	}
@@ -94,6 +97,7 @@ func (bp *BatchProcessor) ProcessBatch() {
 	payloads := bp.payloads
 	bp.payloads = make([]Payload, 0, bp.batchSize)
 
+	bp.restartTimer()
 	bp.mu.Unlock()
 
 	batchSize := len(payloads)
@@ -141,15 +145,30 @@ func (bp *BatchProcessor) sendBatch(payloads []Payload) error {
 	return fmt.Errorf("failed to send batch after 3 attempts")
 }
 
-func NewBatchProcessor(batchSize int, postEndpoint string) *BatchProcessor {
+func NewBatchProcessor(batchSize int, batchInterval time.Duration, postEndpoint string) *BatchProcessor {
 	bp := &BatchProcessor{
-		payloads:     make([]Payload, 0, batchSize),
-		batchSize:    batchSize,
-		postEndpoint: postEndpoint,
+		payloads:      make([]Payload, 0, batchSize),
+		batchSize:     batchSize,
+		postEndpoint:  postEndpoint,
+		batchInterval: batchInterval,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
 
+	bp.restartTimer()
+
 	return bp
+}
+
+func (bp *BatchProcessor) restartTimer() {
+	if bp.timer != nil {
+		bp.timer.Stop()
+	}
+
+	log.Printf("Restarting timer with interval: %v", bp.batchInterval)
+	bp.timer = time.AfterFunc(bp.batchInterval, func() {
+		log.Printf("Timer triggered, processing batch")
+		bp.ProcessBatch()
+	})
 }

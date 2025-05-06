@@ -23,10 +23,10 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	log.Printf("Configuration loaded: batch_size=%d, post_endpoint=%s",
-		config.BatchSize, config.PostEndpoint)
+	log.Printf("Configuration loaded: batch_size=%d, batch_interval=%v, post_endpoint=%s",
+		config.BatchSize, config.BatchInterval, config.PostEndpoint)
 
-	processor := utils.NewBatchProcessor(config.BatchSize, config.PostEndpoint)
+	processor := utils.NewBatchProcessor(config.BatchSize, config.BatchInterval, config.PostEndpoint)
 
 	router := routes.SetupRouter(processor)
 
